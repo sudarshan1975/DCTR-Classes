@@ -1,4 +1,6 @@
-﻿using FLIB = FunctionLibrary;
+﻿using Newtonsoft.Json.Linq;
+using System.Diagnostics.CodeAnalysis;
+using FLIB = FunctionLibrary;
 
 namespace DCTRClasses
 {
@@ -86,7 +88,11 @@ namespace DCTRClasses
         /// <returns></returns>
         public double GetHWHH(double TInKelvin, double wNumInInvCm, string species, int isotopeID)
         {
-            if (!molWtDict.TryGetValue(species, out Dictionary<int, double>? molWtVal)) return double.NaN;
+            update();
+
+            if (!IsValid) return double.NaN;
+
+            if (!_molWtDict.TryGetValue(species, out Dictionary<int, double>? molWtVal)) return double.NaN;
             if (!molWtVal.TryGetValue(isotopeID, out double mWt)) return double.NaN;
 
             double d = CDoppler * Math.Sqrt(TInKelvin / mWt) * wNumInInvCm;
@@ -195,7 +201,7 @@ namespace DCTRClasses
 
             _WNumMult = Math.Exp((Math.Log(endWNum / startWNum)) / NLevels);
 
-            _cachedArray = [];
+            _cachedArray = null;
 
             _curWNum = -1;
         }
@@ -204,13 +210,13 @@ namespace DCTRClasses
         {
             _isUpdated = false;
 
-            molWtDict = null;
+            _molWtDict = null;
 
             string fName = $@"{baseFolder}\Data\molecularWeights.dat";
 
             if (!File.Exists(fName)) return;
 
-            molWtDict = [];
+            _molWtDict = [];
 
             string? curKey = null;
 
@@ -223,7 +229,7 @@ namespace DCTRClasses
 
                 if (lineList.Length < 2)
                 {
-                    molWtDict.Add(line, []);
+                    _molWtDict.Add(line, []);
 
                     curKey = line;
                 }
@@ -234,7 +240,7 @@ namespace DCTRClasses
                     int isotopeID = int.Parse(lineList[0]);
                     double mWt = double.Parse(lineList[1]) / 1000;
 
-                    molWtDict[curKey].Add(isotopeID, mWt);
+                    _molWtDict[curKey].Add(isotopeID, mWt);
                 }
 
                 line = sr.ReadLine();
@@ -244,6 +250,13 @@ namespace DCTRClasses
         #endregion Public Methods
 
         #region Public Properties
+
+        [MemberNotNullWhen(true, nameof(_molWtDict))]
+        public bool IsValid
+        {
+            get { return _isValid; }
+        }
+
         #endregion Public Properties
 
         #region Private Methods
@@ -252,7 +265,7 @@ namespace DCTRClasses
         {
             if (_isUpdated) return;
 
-            _isValid = molWtDict is not null;
+            _isValid = _molWtDict is not null;
 
             _isUpdated = true;
         }
@@ -261,7 +274,7 @@ namespace DCTRClasses
 
         #region Private Properties
 
-        double[] _cachedArray = [];
+        double[]? _cachedArray = [];
 
         // Constant property for thread safety
         const double C2 = 1.1774100225155; // Math.Sqrt(2 * Math.Log(2));
@@ -278,7 +291,7 @@ namespace DCTRClasses
         bool _isValid = false;
 
         // First key: molecule name; second key: isotope ID; value: molecular weight
-        Dictionary<string, Dictionary<int, double>>? molWtDict = null;
+        Dictionary<string, Dictionary<int, double>>? _molWtDict = null;
 
         double _WNumMult = 1;
 

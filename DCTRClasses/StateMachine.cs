@@ -19,7 +19,7 @@ namespace DCTRClasses
             List<RunEngineState> stateList = StateDefinitions.FirstOrDefault().Value;
 
             if (stateList.Count == 1) Log.Information("Homogeneous path");
-            else Log.Information("Inhomogeneous path with {stateList.Count} slabs");
+            else Log.Information($"Inhomogeneous path with {stateList.Count} slabs");
         }
 
         public double[] GetMinMaxWidths(Dictionary<string, string> speciesDefinitions,
@@ -44,16 +44,16 @@ namespace DCTRClasses
 
                 string dBase = speciesDefinitions[species];
 
-                string fileName = Parent.BaseFolder + @"\Data\" + dBase + " " + species + " min self widths.dat";
+                string fileName = $@"{Parent.BaseFolder}\Data\{dBase} {species} min self widths.dat";
                 var minSelfArray = DataFunctions.ReadArrayFromFile(fileName);
 
-                fileName = Parent.BaseFolder + @"\Data\" + dBase + " " + species + " max self widths.dat";
+                fileName = $@"{Parent.BaseFolder}\Data\{dBase} {species} max self widths.dat";
                 var maxSelfArray = DataFunctions.ReadArrayFromFile(fileName);
 
-                fileName = Parent.BaseFolder + @"\Data\" + dBase + " " + species + " min air widths.dat";
+                fileName = $@"{Parent.BaseFolder}\Data\{dBase} {species} min air widths.dat";
                 var minAirArray = DataFunctions.ReadArrayFromFile(fileName);
 
-                fileName = Parent.BaseFolder + @"\Data\" + dBase + " " + species + " max air widths.dat";
+                fileName = $@"{Parent.BaseFolder}\Data\{dBase} {species} max air widths.dat";
                 var maxAirArray = DataFunctions.ReadArrayFromFile(fileName);
 
                 for (int i = 0; i < NTemp - 1; i++)
@@ -95,7 +95,7 @@ namespace DCTRClasses
             return outArray;
         }
 
-        public double[,] GetStateArrays()
+        public double[,]? GetStateArrays()
         {
             List<string> stateDefList = [];
             List<double[]> outData = [];
@@ -104,9 +104,9 @@ namespace DCTRClasses
             int speciesIx = 0;
             foreach (string species in speciesList)
             {
-                if (StateDefinitions.ContainsKey(species))
+                if (StateDefinitions.TryGetValue(species, out List<RunEngineState>? states))
                 {
-                    foreach (RunEngineState state in StateDefinitions[species])
+                    foreach (RunEngineState state in states)
                     {
                         if (!stateDefList.Contains(state.StateDefinition))
                         {
@@ -155,18 +155,18 @@ namespace DCTRClasses
 
         public string GetStateSignature(string species)
         {
-            if (!StateDefinitions.ContainsKey(species)) return "[]";
+            if (!StateDefinitions.TryGetValue(species, out List<RunEngineState>? states)) return "[]";
 
             string outStr = "[";
 
             List<string> outStrList = [];
-            foreach (RunEngineState state in StateDefinitions[species])
+            foreach (RunEngineState state in states)
             {
                 string s = "";
-                s += "T" + state.Temperature.ToString("0.##");
-                s += "P" + state.TotalPressure.ToString("0.##");
-                s += "M" + state.MoleFraction.ToString("0.####");
-                s += "L" + state.StartLength.ToString("0.####") + ":" + state.EndLength.ToString("0.####");
+                s += $"T{state.Temperature:0.##}";
+                s += $"P{state.TotalPressure:0.##}";
+                s += $"M{state.MoleFraction:0.####}";
+                s += $"L{state.StartLength:0.####}:{state.EndLength:0.####}";
 
                 outStrList.Add(s);
             }
@@ -266,7 +266,7 @@ namespace DCTRClasses
                         string s = speciesList[i];
                         double mf = mfList[i];
 
-                        if (!StateDefinitions.ContainsKey(s))
+                        if (!StateDefinitions.TryGetValue(s, out _))
                         {
                             StateDefinitions.Add(s, []);
                         }
@@ -291,7 +291,7 @@ namespace DCTRClasses
             }
         }
 
-        double interpretString(string s)
+        static double interpretString(string s)
         {
             //NCalc.Expression _evalExp = new NCalc.Expression(s);
             //foreach (string v in Variables.Keys)
@@ -316,7 +316,10 @@ namespace DCTRClasses
 
         public void WriteStateArray(string fileName)
         {
-            double[,] stateArray = GetStateArrays();
+            double[,]? stateArray = GetStateArrays();
+
+            if (stateArray is null) return;
+
             int M = stateArray.GetLength(0), N = stateArray.GetLength(1);
 
             using StreamWriter sw = new(fileName);
@@ -350,13 +353,25 @@ namespace DCTRClasses
 
         #region Public Properties
 
-        public string FileName { get; set; } = null;
+        public string? FileName
+        {
+            get { return _fileName; }
+            set { _fileName = value; }
+        }
 
-        public RunEngine Parent { get; set; } = null;
+        public RunEngine? Parent
+        {
+            get { return _parent; }
+            set { _parent = value; }
+        }
 
         // RunEngineState is the class which defines the homogeneous slab
         // The string key is the state ID, while the value is the state definition
-        public Dictionary<string, List<RunEngineState>> StateDefinitions { get; set; } = null;
+        public Dictionary<string, List<RunEngineState>>? StateDefinitions
+        {
+            get { return _stateDefinitions; }
+            set { _stateDefinitions = value; }
+        }
 
         #endregion Public Properties
 
@@ -365,6 +380,15 @@ namespace DCTRClasses
         #endregion Private Methods
 
         #region Private Properties
+
+        string? _fileName = null;
+
+        RunEngine? _parent = null;
+
+        // RunEngineState is the class which defines the homogeneous slab
+        // The string key is the state ID, while the value is the state definition
+        Dictionary<string, List<RunEngineState>>? _stateDefinitions = null;
+
         #endregion Private Properties
     }
 }

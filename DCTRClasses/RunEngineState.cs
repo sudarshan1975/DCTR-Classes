@@ -100,7 +100,7 @@
         // The value is the calculated partition function value for the given species,
         // isotope, and temperature (of the homogeneous slab)
         public Dictionary<string, Dictionary<int, double>> PartitionFunctionValueDictionary { get; set; } =
-            new Dictionary<string, Dictionary<int, double>>();
+            [];
 
         // Constant value, will be calculated upon initialization
         public double IntensityScalingFactor { get; set; } = 1;
@@ -118,10 +118,10 @@
         public string GetDescription()
         {
             List<string> outStrList = [
-                "T" + _temperature,
-                "P" + _totalPressure,
-                "MF" + _moleFraction,
-                "L" + PathLength
+                $"T{_temperature}",
+                $"P{_totalPressure}",
+                $"MF{_moleFraction}",
+                $"L{PathLength}"
             ];
 
             return string.Join(";", outStrList);
@@ -150,10 +150,9 @@
 
         public string GetFileDescription(double StartWaveNumber, double EndWaveNumber)
         {
-            string outStr = ((int)StartWaveNumber).ToString("D5") + "_" +
-                     ((int)EndWaveNumber).ToString("D5") + "_" +
-                     _temperature.ToString() + "_" + _totalPressure.ToString() + "_" +
-                     _moleFraction.ToString();
+            string outStr = $"{((int)StartWaveNumber).ToString("D5")}_" +
+                     $"{((int)EndWaveNumber).ToString("D5")}_" +
+                     $"{_temperature}_{_totalPressure}_{_moleFraction}";
 
             return outStr;
         }

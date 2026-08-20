@@ -1,4 +1,6 @@
-﻿namespace DCTRClasses
+﻿using Serilog;
+
+namespace DCTRClasses
 {
     /// <summary>
     /// Used to derive the spectral range (start and end wavenumbers in cm-1)
@@ -12,8 +14,15 @@
         {
             FileName = fName;
 
-            List<string> splitStrings = StringFunctions.Split(
+            List<string>? splitStrings = StringFunctions.Split(
                 Path.GetFileName(fName), ["_", "-"], out _);
+
+            if (splitStrings is null)
+            {
+                Log.Warning($"Null output from file name split");
+
+                return;
+            }
 
             StartWavenumber = double.Parse(splitStrings[1]);
             EndWavenumber = double.Parse(splitStrings[2].Replace(".bin", ""));

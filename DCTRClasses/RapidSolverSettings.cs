@@ -14,9 +14,9 @@ namespace DCTRClasses
         public void WriteToFolder(string folder)
         {
             using StreamWriter sw = new(folder + "\\Settings.dat");
-            sw.WriteLine("NWidthLevels:\t" + NWidthLevels);
+            sw.WriteLine($"NWidthLevels:\t{NWidthLevels}");
 
-            sw.WriteLine("NShifts:\t" + NShifts);
+            sw.WriteLine($"NShifts:\t{NShifts}");
         }
 
         #endregion Public Methods

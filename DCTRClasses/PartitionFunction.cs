@@ -10,8 +10,7 @@ namespace DCTRClasses
         // while the spline list represents a list of splines for each isotope
         // As an example, the spline list might contain 10 spline representations,
         // each of which is valid within a limited temperature range
-        static Dictionary<string, Dictionary<int, List<CubicSpline>>> _splineDict =
-            new Dictionary<string, Dictionary<int, List<CubicSpline>>>();
+        static Dictionary<string, Dictionary<int, List<CubicSpline>>> _splineDict = [];
 
         // See description for _splineDict
         // The string key specifies the species (eg.: "HITRAN CO2" or "HITEMP H2O")
@@ -19,20 +18,18 @@ namespace DCTRClasses
         // while the spline list represents a list of temperature ranges for each isotope
         // For example, the full temperature range of (say) 0 to 6000 K may be divided
         // into smaller ranges of 50 K each, with a representative spline for each range
-        static Dictionary<string, Dictionary<int, List<double>>> _temperatureDict =
-            new Dictionary<string, Dictionary<int, List<double>>>();
+        static Dictionary<string, Dictionary<int, List<double>>> _temperatureDict = [];
 
         // Specifies the base temperature for each species (eg.: "HITRAN CO2" or "HITEMP H2O")
         // For example - HITRAN and HITEMP have a base temperature of 296 K,
         // while CDSD has 300 K
-        static Dictionary<string, double> _baseTemperatureDict = new Dictionary<string, double>();
+        static Dictionary<string, double> _baseTemperatureDict = [];
 
         // The string key specifies the species (eg.: "HITRAN CO2" or "HITEMP H2O")
         // Within the inner dictionary, the integer key specifies the isotope ID
         // The base value is a normalization value (the value of the partition function
         // for that species/ isotope at its base temperature)
-        static Dictionary<string, Dictionary<int, double>> _baseValueDict =
-            new Dictionary<string, Dictionary<int, double>>();
+        static Dictionary<string, Dictionary<int, double>> _baseValueDict = [];
 
         static PartitionFunction()
         {
@@ -46,175 +43,171 @@ namespace DCTRClasses
 
         public static void WriteToBinaryFile(string fileName)
         {
-            using (BinaryWriter bw = new BinaryWriter(File.Open(fileName, FileMode.Create)))
+            using BinaryWriter bw = new(File.Open(fileName, FileMode.Create));
+            bw.Write(_splineDict.Count);
+
+            foreach (string key in _splineDict.Keys)
             {
-                bw.Write(_splineDict.Count);
+                bw.Write(key);
 
-                foreach (string key in _splineDict.Keys)
+                bw.Write(_splineDict[key].Count);
+
+                foreach (int isotopeID in _splineDict[key].Keys)
                 {
-                    bw.Write(key);
+                    List<CubicSpline> splineList = _splineDict[key][isotopeID];
 
-                    bw.Write(_splineDict[key].Count);
+                    bw.Write(isotopeID);
 
-                    foreach (int isotopeID in _splineDict[key].Keys)
+                    bw.Write(splineList.Count);
+
+                    foreach (CubicSpline spline in splineList)
                     {
-                        List<CubicSpline> splineList = _splineDict[key][isotopeID];
-
-                        bw.Write(isotopeID);
-
-                        bw.Write(splineList.Count);
-
-                        foreach (CubicSpline spline in splineList)
-                        {
-                            spline.WriteToBinaryStream(bw);
-                        }
+                        spline.WriteToBinaryStream(bw);
                     }
                 }
+            }
 
-                bw.Write(_temperatureDict.Count);
+            bw.Write(_temperatureDict.Count);
 
-                foreach (string key in _temperatureDict.Keys)
+            foreach (string key in _temperatureDict.Keys)
+            {
+                bw.Write(key);
+
+                bw.Write(_temperatureDict[key].Count);
+
+                foreach (int isotopeID in _temperatureDict[key].Keys)
                 {
-                    bw.Write(key);
+                    List<double> TList = _temperatureDict[key][isotopeID];
 
-                    bw.Write(_temperatureDict[key].Count);
+                    bw.Write(isotopeID);
 
-                    foreach (int isotopeID in _temperatureDict[key].Keys)
+                    bw.Write(TList.Count);
+
+                    foreach (double T in TList)
                     {
-                        List<double> TList = _temperatureDict[key][isotopeID];
-
-                        bw.Write(isotopeID);
-
-                        bw.Write(TList.Count);
-
-                        foreach (double T in TList)
-                        {
-                            bw.Write(T);
-                        }
+                        bw.Write(T);
                     }
                 }
+            }
 
-                bw.Write(_baseTemperatureDict.Count);
+            bw.Write(_baseTemperatureDict.Count);
 
-                foreach (string key in _baseTemperatureDict.Keys)
+            foreach (string key in _baseTemperatureDict.Keys)
+            {
+                bw.Write(key);
+
+                bw.Write(_baseTemperatureDict[key]);
+            }
+
+            bw.Write(_baseValueDict.Count);
+
+            foreach (string key in _baseValueDict.Keys)
+            {
+                bw.Write(key);
+
+                bw.Write(_baseValueDict[key].Count);
+
+                foreach (int isotopeID in _baseValueDict[key].Keys)
                 {
-                    bw.Write(key);
+                    bw.Write(isotopeID);
 
-                    bw.Write(_baseTemperatureDict[key]);
-                }
-
-                bw.Write(_baseValueDict.Count);
-
-                foreach (string key in _baseValueDict.Keys)
-                {
-                    bw.Write(key);
-
-                    bw.Write(_baseValueDict[key].Count);
-
-                    foreach (int isotopeID in _baseValueDict[key].Keys)
-                    {
-                        bw.Write(isotopeID);
-
-                        bw.Write(_baseValueDict[key][isotopeID]);
-                    }
+                    bw.Write(_baseValueDict[key][isotopeID]);
                 }
             }
         }
 
         public static void ReadFromBinaryFile(string fileName)
         {
-            _splineDict = new Dictionary<string, Dictionary<int, List<CubicSpline>>>();
-            _temperatureDict = new Dictionary<string, Dictionary<int, List<double>>>();
-            _baseTemperatureDict = new Dictionary<string, double>();
-            _baseValueDict = new Dictionary<string, Dictionary<int, double>>();
+            _splineDict = [];
+            _temperatureDict = [];
+            _baseTemperatureDict = [];
+            _baseValueDict = [];
 
-            using (BinaryReader br = new BinaryReader(File.Open(fileName, FileMode.Open)))
+            using BinaryReader br = new(File.Open(fileName, FileMode.Open));
+            int keyCount = br.ReadInt32();
+
+            for (int i = 0; i < keyCount; i++)
             {
-                int keyCount = br.ReadInt32();
+                string key = br.ReadString();
 
-                for (int i = 0; i < keyCount; i++)
+                _splineDict.Add(key, []);
+
+                int isotopeCount = br.ReadInt32();
+
+                for (int j = 0; j < isotopeCount; j++)
                 {
-                    string key = br.ReadString();
+                    int isotopeID = br.ReadInt32();
 
-                    _splineDict.Add(key, new Dictionary<int, List<CubicSpline>>());
+                    _splineDict[key].Add(isotopeID, []);
 
-                    int isotopeCount = br.ReadInt32();
+                    List<CubicSpline> splineList = _splineDict[key][isotopeID];
 
-                    for (int j = 0; j < isotopeCount; j++)
+                    int splineCount = br.ReadInt32();
+
+                    for (int splineIndex = 0; splineIndex < splineCount; splineIndex++)
                     {
-                        int isotopeID = br.ReadInt32();
+                        CubicSpline spline = new();
 
-                        _splineDict[key].Add(isotopeID, []);
+                        splineList.Add(spline);
 
-                        List<CubicSpline> splineList = _splineDict[key][isotopeID];
-
-                        int splineCount = br.ReadInt32();
-
-                        for (int splineIndex = 0; splineIndex < splineCount; splineIndex++)
-                        {
-                            CubicSpline spline = new();
-
-                            splineList.Add(spline);
-
-                            spline.ReadFromBinaryStream(br);
-                        }
+                        spline.ReadFromBinaryStream(br);
                     }
                 }
+            }
 
-                keyCount = br.ReadInt32();
+            keyCount = br.ReadInt32();
 
-                for (int i = 0; i < keyCount; i++)
+            for (int i = 0; i < keyCount; i++)
+            {
+                string key = br.ReadString();
+
+                _temperatureDict.Add(key, []);
+
+                int isotopeCount = br.ReadInt32();
+
+                for (int j = 0; j < isotopeCount; j++)
                 {
-                    string key = br.ReadString();
+                    int isotopeID = br.ReadInt32();
 
-                    _temperatureDict.Add(key, []);
-
-                    int isotopeCount = br.ReadInt32();
-
-                    for (int j = 0; j < isotopeCount; j++)
-                    {
-                        int isotopeID = br.ReadInt32();
-
-                        _temperatureDict[key].Add(isotopeID, []);
-
-                        int TCount = br.ReadInt32();
-
-                        for (int TIx = 0; TIx < TCount; TIx++)
-                        {
-                            _temperatureDict[key][isotopeID].Add(br.ReadDouble());
-                        }
-                    }
-                }
-
-                keyCount = br.ReadInt32();
-
-                for (int i = 0; i < keyCount; i++)
-                {
-                    string key = br.ReadString();
-
-                    double T = br.ReadDouble();
-
-                    _baseTemperatureDict.Add(key, T);
-                }
-
-                keyCount = br.ReadInt32();
-
-                for (int i = 0; i < keyCount; i++)
-                {
-                    string key = br.ReadString();
-
-                    _baseValueDict.Add(key, []);
+                    _temperatureDict[key].Add(isotopeID, []);
 
                     int TCount = br.ReadInt32();
 
-                    for (int j = 0; j < TCount; j++)
+                    for (int TIx = 0; TIx < TCount; TIx++)
                     {
-                        int isotopeID = br.ReadInt32();
-
-                        double T = br.ReadDouble();
-
-                        _baseValueDict[key].Add(isotopeID, T);
+                        _temperatureDict[key][isotopeID].Add(br.ReadDouble());
                     }
+                }
+            }
+
+            keyCount = br.ReadInt32();
+
+            for (int i = 0; i < keyCount; i++)
+            {
+                string key = br.ReadString();
+
+                double T = br.ReadDouble();
+
+                _baseTemperatureDict.Add(key, T);
+            }
+
+            keyCount = br.ReadInt32();
+
+            for (int i = 0; i < keyCount; i++)
+            {
+                string key = br.ReadString();
+
+                _baseValueDict.Add(key, []);
+
+                int TCount = br.ReadInt32();
+
+                for (int j = 0; j < TCount; j++)
+                {
+                    int isotopeID = br.ReadInt32();
+
+                    double T = br.ReadDouble();
+
+                    _baseValueDict[key].Add(isotopeID, T);
                 }
             }
         }
@@ -231,45 +224,45 @@ namespace DCTRClasses
             return "HITRAN CO2";
         }
 
-        static List<double> GetTemperatureList(string desc, int isotopeID)
+        static List<double> getTemperatureList(string desc, int isotopeID)
         {
             desc = GetDescriptionString(desc);
 
-            if (!_temperatureDict[desc].ContainsKey(isotopeID))
+            if (!_temperatureDict[desc].TryGetValue(isotopeID, out List<double>? value))
             {
                 return _temperatureDict[desc][1];
             }
 
-            return _temperatureDict[desc][isotopeID];
+            return value;
         }
 
-        static List<CubicSpline> GetSplineList(string desc, int isotopeID)
+        static List<CubicSpline> getSplineList(string desc, int isotopeID)
         {
             desc = GetDescriptionString(desc);
 
-            if (!_splineDict[desc].ContainsKey(isotopeID))
+            if (!_splineDict[desc].TryGetValue(isotopeID, out List<CubicSpline>? value))
             {
                 return _splineDict[desc][1];
             }
 
-            return _splineDict[desc][isotopeID];
+            return value;
         }
 
-        static double GetBaseValue(string desc, int isotopeID)
+        static double getBaseValue(string desc, int isotopeID)
         {
             desc = GetDescriptionString(desc);
 
-            if (!_baseValueDict[desc].ContainsKey(isotopeID))
+            if (!_baseValueDict[desc].TryGetValue(isotopeID, out double value))
             {
                 return _baseValueDict[desc][1];
             }
 
-            return _baseValueDict[desc][isotopeID];
+            return value;
         }
 
         public static Dictionary<int, double> GetValues(double T, string desc)
         {
-            Dictionary<int, double> outDict = new Dictionary<int, double>();
+            Dictionary<int, double> outDict = [];
 
             foreach (int isotopeID in _temperatureDict[desc].Keys)
             {
@@ -281,8 +274,8 @@ namespace DCTRClasses
 
         public static double GetRawValue(string desc, int isotopeID, double T)
         {
-            List<double> TList = GetTemperatureList(desc, isotopeID);
-            List<CubicSpline> splineList = GetSplineList(desc, isotopeID);
+            List<double> TList = getTemperatureList(desc, isotopeID);
+            List<CubicSpline> splineList = getSplineList(desc, isotopeID);
 
             int ix = TList.BinarySearch(T);
 
@@ -312,8 +305,8 @@ namespace DCTRClasses
         /// <returns></returns>
         public static double GetValue(string desc, int isotopeID, double T)
         {
-            List<double> TList = GetTemperatureList(desc, isotopeID);
-            List<CubicSpline> splineList = GetSplineList(desc, isotopeID);
+            List<double> TList = getTemperatureList(desc, isotopeID);
+            List<CubicSpline> splineList = getSplineList(desc, isotopeID);
 
             int ix = TList.BinarySearch(T);
 
@@ -329,7 +322,7 @@ namespace DCTRClasses
 
             if (result.TryGetValue(out double? value))
             {
-                return value.Value / GetBaseValue(desc, isotopeID);
+                return value.Value / getBaseValue(desc, isotopeID);
             }
 
             return double.NaN;

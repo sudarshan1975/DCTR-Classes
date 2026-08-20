@@ -38,7 +38,7 @@ namespace DCTRClasses
             Log.Information($"Intensity cutoff={IntensityCutoff} cm-1");
             Log.Information($"Species count={SpeciesDefinitions.Count}");
             Log.Information($"Species={string.Join(",",
-                SpeciesDefinitions.Select(x => x.Value + " " + x.Key))}");
+                SpeciesDefinitions.Select(x => $"{x.Value} {x.Key}"))}");
 
             Solver.Echo();
 
@@ -63,7 +63,7 @@ namespace DCTRClasses
         {
             BaseFolder = baseFolder;
 
-            _dopplerEngine.SetMolecularWeights(BaseFolder);
+            //_dopplerEngine.SetMolecularWeights(BaseFolder);
 
             ReadFromFile(BaseFolder + @"\DCTRInput.dat");
 
@@ -194,7 +194,8 @@ namespace DCTRClasses
 
                 if (lineList[0] == "profile")
                 {
-                    if (lineList[1].ToLower() == "lorentz") Profile = Profile.Lorentz;
+                    if (lineList[1].Equals("lorentz", StringComparison.CurrentCultureIgnoreCase))
+                        Profile = Profile.Lorentz;
                     else Profile = Profile.Voigt;
 
                     doneFlag = true;
@@ -234,7 +235,7 @@ namespace DCTRClasses
                     {
                         string fName = lineList[1].Trim();
 
-                        fName = BaseFolder + "\\PathSpecifications\\" + fName;
+                        fName = $"{BaseFolder}\\PathSpecifications\\{fName}";
 
                         Log.Information($"Reading path from file: {fName}");
 
@@ -294,7 +295,7 @@ namespace DCTRClasses
             Initialize(initList);
         }
 
-        void report(string fileName, Dictionary<string, string> reportDict)
+        static void report(string fileName, Dictionary<string, string> reportDict)
         {
             List<string> descList =
             [
@@ -318,7 +319,7 @@ namespace DCTRClasses
 
             foreach (string key in reportDict.Keys)
             {
-                sw.WriteLine(key + "\t" + reportDict[key]);
+                sw.WriteLine($"{key}\t{reportDict[key]}");
             }
         }
 
@@ -336,7 +337,7 @@ namespace DCTRClasses
             Solver.MinWidth = minMaxWidths[0];
             Solver.MaxWidth = minMaxWidths[1];
 
-            Solver.Initialize();
+            Solver.Initialize(BaseFolder);
 
             List<string> inputFileList = [];
 
@@ -358,7 +359,7 @@ namespace DCTRClasses
                 DataBuffer dataBufferNew = new()
                 {
                     DebugMode = false,
-                    DebugFileName = BaseFolder + @"\DebugFolder\" + speciesKey + ".dbg",
+                    DebugFileName = $@"{BaseFolder}\DebugFolder\{speciesKey}.dbg",
                     SpeciesDatabaseDef = speciesDef
                 };
 
@@ -425,28 +426,28 @@ namespace DCTRClasses
             Log.Information($"Run complete: Success");
         }
 
-        void writeFileList(string fileName, List<string> inputFileList)
+        static void writeFileList(string fileName, List<string> inputFileList)
         {
             using StreamWriter sw = new(fileName);
-            sw.WriteLine("File list" + Environment.NewLine + string.Join(Environment.NewLine + "\t",
-                inputFileList));
+            sw.WriteLine($"File list{Environment.NewLine}{string.Join(Environment.NewLine + "\t",
+                inputFileList)}");
         }
 
         public void WriteToFile(string fName)
         {
             using StreamWriter sw = new(fName);
-            sw.WriteLine("Run type:\t" + RunType);
-            sw.WriteLine("Profile:\t" + Profile);
+            sw.WriteLine($"Run type:\t{RunType}");
+            sw.WriteLine($"Profile:\t{Profile}");
             foreach (string key in SpeciesDefinitions.Keys)
-                sw.WriteLine(SpeciesDefinitions[key] + " " + key);
+                sw.WriteLine($"{SpeciesDefinitions[key]} {key}");
             sw.Write("Path definition:\t");
             StateMachine.WriteToStream(sw);
-            sw.WriteLine("StartWNum (cm-1):\t" + StartWaveNumber);
-            sw.WriteLine("EndWNum (cm-1):\t" + EndWaveNumber);
-            sw.WriteLine("WNum Resolution (cm-1):\t" + WaveNumberResolution);
-            sw.WriteLine("Wavenumber Spread  (cm-1):\t" + WaveNumberSpread);
-            sw.WriteLine("Wavenumber Offset (cm-1):\t" + StartWNumOffset);
-            sw.WriteLine("Intensity Cutoff (cm-1):\t" + IntensityCutoff);
+            sw.WriteLine($"StartWNum (cm-1):\t{StartWaveNumber}");
+            sw.WriteLine($"EndWNum (cm-1):\t{EndWaveNumber}");
+            sw.WriteLine($"WNum Resolution (cm-1):\t{WaveNumberResolution}");
+            sw.WriteLine($"Wavenumber Spread  (cm-1):\t{WaveNumberSpread}");
+            sw.WriteLine($"Wavenumber Offset (cm-1):\t{StartWNumOffset}");
+            sw.WriteLine($"Intensity Cutoff (cm-1):\t{IntensityCutoff}");
         }
 
         #endregion Public Methods
@@ -586,7 +587,7 @@ namespace DCTRClasses
 
         string _description = "";
 
-        readonly DopplerEngine _dopplerEngine = new();
+        //readonly DopplerEngine _dopplerEngine = new();
 
         // Cm-1
         double _endWaveNumber = 0;

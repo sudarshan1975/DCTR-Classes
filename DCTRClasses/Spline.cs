@@ -1,5 +1,6 @@
 ﻿using MNum = MathNet.Numerics;
 using FunctionLibrary;
+using System.Diagnostics.CodeAnalysis;
 
 namespace DCTRClasses
 {
@@ -24,7 +25,7 @@ namespace DCTRClasses
                 return new(null, false, message, Severity.WARNING);
             }
 
-            if (coeffs.Length != 3)
+            if (coeffs.Length != 4)
             {
                 return new(null, false, $"Invalid spline coefficient length:" +
                     $" {coeffs.Length} instead of 3", Severity.WARNING);
@@ -162,13 +163,13 @@ namespace DCTRClasses
 
         #region Public Properties
 
-        public List<double> XList
+        public List<double>? XList
         {
             get { return _xList; }
             set { _xList = value; }
         }
 
-        public List<double> YList
+        public List<double>? YList
         {
             get { return _yList; }
             set { _yList = value; }
@@ -180,11 +181,21 @@ namespace DCTRClasses
             set { _count = value; }
         }
 
+        [MemberNotNullWhen(true, nameof(_xList))]
+        [MemberNotNullWhen(true, nameof(_yList))]
+        [MemberNotNullWhen(true, nameof(_coeffList))]
+        [MemberNotNullWhen(true, nameof(XList))]
+        [MemberNotNullWhen(true, nameof(YList))]
+        public bool IsValid
+        {
+            get { return _isValid; }
+        }
+
         #endregion Public Properties
 
         #region Private Methods
 
-        bool checkList(List<double> inpList)
+        static bool checkList(List<double> inpList)
         {
             if (inpList == null) return false;
 
@@ -212,7 +223,7 @@ namespace DCTRClasses
         {
             update();
 
-            if (!_isValid) return new(null, false, $"Invalid spline", Severity.WARNING);
+            if (!IsValid) return new(null, false, $"Invalid spline", Severity.WARNING);
 
             if (double.IsNaN(x) || double.IsInfinity(x))
             {
@@ -235,8 +246,12 @@ namespace DCTRClasses
             return new([a, b, c, d]);
         }
 
-        protected void set(List<double> xList, List<double> yList)
+        protected void Set(List<double> xList, List<double> yList)
         {
+            update();
+
+            if (!IsValid) return;
+
             if (xList == null || yList == null) return;
 
             if (xList.Count != yList.Count) throw new Exception("Mismatched number of entries");
@@ -253,8 +268,8 @@ namespace DCTRClasses
 
             if (!b) throw new Exception("X values should be monotonically increasing or decreasing");
 
-            XList = new List<double>(xList);
-            YList = new List<double>(yList);
+            XList = [.. xList];
+            YList = [.. yList];
 
             Count = XList.Count;
         }
@@ -268,23 +283,21 @@ namespace DCTRClasses
             _isValid = _coeffList is not null && _xList is not null && _yList is not null;
         }
 
-        protected static void writeMatrixToFile(MNum.LinearAlgebra.Matrix<double> matrix, string fName)
+        protected static void WriteMatrixToFile(MNum.LinearAlgebra.Matrix<double> matrix, string fName)
         {
             int M = matrix.RowCount, N = matrix.ColumnCount;
 
-            using (StreamWriter sw = new StreamWriter(fName))
+            using StreamWriter sw = new(fName);
+            for (int i = 0; i < M; i++)
             {
-                for (int i = 0; i < M; i++)
+                for (int j = 0; j < N; j++)
                 {
-                    for (int j = 0; j < N; j++)
-                    {
-                        if (j != 0) sw.Write("\t");
+                    if (j != 0) sw.Write("\t");
 
-                        sw.Write(matrix[i, j]);
-                    }
-
-                    sw.WriteLine();
+                    sw.Write(matrix[i, j]);
                 }
+
+                sw.WriteLine();
             }
         }
 
@@ -292,17 +305,17 @@ namespace DCTRClasses
 
         #region Private Properties
 
-        List<double>? _xList = null;
-
-        List<double>? _yList = null;
+        protected double[,]? _coeffList = new double[4, 0];
 
         int _count = 0;
-
-        protected double[,]? _coeffList = new double[4, 0];
 
         protected bool _isUpdated = false;
 
         protected bool _isValid = false;
+
+        List<double>? _xList = null;
+
+        List<double>? _yList = null;
 
         #endregion Private Properties
     }

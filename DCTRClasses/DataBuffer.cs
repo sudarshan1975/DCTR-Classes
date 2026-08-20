@@ -16,6 +16,8 @@ namespace DCTRClasses
         // Convenience method to get the names of files represented by the buffer
         public List<string> GetFileList()
         {
+            if (_fileList is null) return [];
+
             return [.. _fileList.Select(item => item.FileName)];
         }
 
@@ -190,7 +192,7 @@ namespace DCTRClasses
 
         public override string ToString()
         {
-            return FolderName + " (" + StartWavenumber + " to " + EndWavenumber + " cm-1)";
+            return $"{FolderName} ({StartWavenumber} to {EndWavenumber} cm-1)";
         }
 
         /// <summary>

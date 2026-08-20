@@ -8,7 +8,7 @@ namespace DCTRClasses
 {
     public class StringFunctions
     {
-        public static List<string> Split(string inpStr, List<string> splitStrings, out List<string> splitters)
+        public static List<string>? Split(string inpStr, List<string> splitStrings, out List<string> splitters)
         {
             splitters = [];
 

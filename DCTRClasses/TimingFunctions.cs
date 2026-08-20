@@ -70,7 +70,7 @@ namespace DCTRClasses
                 double t = _timeDict[dsc];
                 int count = _countDict[dsc];
 
-                reportStr.Add(dsc + ": Time: " + t + " s; Count: " + count);
+                reportStr.Add($"{dsc}: Time: {t} s; Count: {count}");
             }
 
             return string.Join(Environment.NewLine, reportStr);
@@ -95,7 +95,7 @@ namespace DCTRClasses
             _stopwatchDict[desc].Restart();
         }
 
-        public static void ReportTime(string fileName = null)
+        public static void ReportTime(string? fileName = null)
         {
             string reportStr = GetTimeString();
 

@@ -34,11 +34,13 @@ namespace DCTRClasses
             _outArray = null;
         }
 
-        public void Initialize()
+        public void Initialize(string baseFolder)
         {
             _currentRunID = Guid.NewGuid();
 
             _outArray = null;
+
+            _dopplerEngine.SetMolecularWeights(baseFolder);
 
             _widthRanges = new double[Settings.NWidthLevels];
             List<int> shiftList = [];
@@ -181,8 +183,8 @@ namespace DCTRClasses
                 return;
             }
 
-            string fName = Parent.BaseFolder + "\\Temp\\" + _currentRunID.ToString();
-            fName += "_" + Parent.CurWNumRangeIndex + ".dat";
+            string fName = $"{Parent.BaseFolder}\\Temp\\{_currentRunID}";
+            fName += $"_{Parent.CurWNumRangeIndex}.dat";
 
             using BinaryWriter sw = new(
                 new FileStream(fName, FileMode.Create));
@@ -220,7 +222,7 @@ namespace DCTRClasses
 
         // Updates the output arrays with either the line intensity value (for Lorentz profile runs)
         // or the Doppler profile scaled by the line intensity value (for Voigt profile runs)
-        public void Update(LineEnsemble lEnsemble, int ix, RunEngineState state, string species, DopplerEngine dEngine)
+        public void Update(LineEnsemble lEnsemble, int ix, RunEngineState state, string species)
         {
             int ixSingle = ix * LineEnsemble.NDataColumns;
             int ixIndex = ix * LineEnsemble.NIndexColumns;
@@ -233,7 +235,7 @@ namespace DCTRClasses
             double curWidth = lEnsemble.DataArray[ixSingle + 10];
             int isotopeID = lEnsemble.IndexArray[ixIndex + 2];
 
-            double[] dArray = null;
+            double[]? dArray = null;
 
             double repWNum = _arrayStartWNum + index * Parent.WaveNumberResolution;
 
@@ -252,9 +254,9 @@ namespace DCTRClasses
             // calculated and inserted into the appropriate locations in
             // the profile array
             // dEngine being null implies that the Doppler array is a stick function
-            if (Parent.Profile != Profile.Lorentz && dEngine != null)
+            if (Parent.Profile != Profile.Lorentz && _dopplerEngine != null)
             {
-                Result<double[]?> dArrayRes = dEngine.GetDistributionArray(state.Temperature,
+                Result<double[]?> dArrayRes = _dopplerEngine.GetDistributionArray(state.Temperature,
                 wCenter, species, isotopeID, Parent.WaveNumberResolution);
 
                 if (dArrayRes.TryGetValue(out double[]? dVal))
@@ -272,6 +274,9 @@ namespace DCTRClasses
             {
                 double mult = curIntensity;
 
+                //Result<double[]?> dArrayRes = _dopplerEngine.GetDistributionArray(state.Temperature,
+                //wCenter, species, isotopeID, Parent.WaveNumberResolution);
+
                 if (Parent.Profile == Profile.Voigt)
                 {
                     mult *= Parent.WaveNumberResolution;
@@ -283,7 +288,11 @@ namespace DCTRClasses
                 int wNumBinShiftIx = 0;
                 foreach (int wNumBinShift in shiftList)
                 {
-                    if (index + wNumBinShift < _NArray) _outArray[widthIndex][index + wNumBinShift] += dArray[0] * mult * weights[wNumBinShiftIx];
+                    if (index + wNumBinShift < _NArray)
+                    {
+                        _outArray[widthIndex][index + wNumBinShift] +=
+                            dArray[0] * mult * weights[wNumBinShiftIx];
+                    }
 
                     wNumBinShiftIx++;
                 }
@@ -338,7 +347,11 @@ namespace DCTRClasses
 
             Log.Information(string.Join(Environment.NewLine, cpuTimes.Keys));
 
-            double t1 = cpuTimes.ContainsKey("RHTC: DataBuffer: GetData") ? cpuTimes["RHTC: DataBuffer: GetData"] : 0;
+            if (!cpuTimes.TryGetValue("RHTC: DataBuffer: GetData", out double t1))
+            {
+                t1 = 0;
+            }
+
             double t2 = cpuTimes["RHTC: Rapid calcs"] - t1;
             cpuTimes["RHTC: Rapid calcs"] = t2;
             TimingFunctions.UpdateTime("RHTC: Rapid calcs", t2);
@@ -350,8 +363,10 @@ namespace DCTRClasses
             reportDict.Add("Total calculation time", (t1 + t2 + t3) + " s");
             reportDict.Add("Wavenumber array count", _NBaseArray.ToString("N0"));
             reportDict.Add("Calculation array count", _NArray.ToString("N0"));
-            reportDict.Add("Total line count (for " + NSlabs + " homogeneous slabs)", TotalLineCount.ToString("N0"));
-            reportDict.Add("Average line count per homogeneous slab", (TotalLineCount / (double)NSlabs).ToString("N0"));
+            reportDict.Add($"Total line count (for {NSlabs} homogeneous slabs)",
+                TotalLineCount.ToString("N0"));
+            reportDict.Add("Average line count per homogeneous slab",
+                (TotalLineCount / (double)NSlabs).ToString("N0"));
             reportDict.Add("Total line calculation count (estimate)",
                 TotalLineCalculationCountEstimate.ToString("N0"));
 
@@ -386,22 +401,22 @@ namespace DCTRClasses
                 double wNum = _arrayStartWNum + (i + nOffset) * Parent.WaveNumberResolution;
                 double aVal = _outArray[0] != null ? _outArray[0][i + nOffset] : 0;
 
-                sw.WriteLine(wNum + "\t" + aVal);
+                sw.WriteLine($"{wNum}\t{aVal}");
             }
         }
 
         public void WriteDetails(string folder)
         {
-            using StreamWriter sw = new(folder + "\\Widths.dat");
-            sw.WriteLine("Nominal number of widths\t" + Settings.NWidthLevels.ToString());
-            sw.WriteLine("Widths\tMin=" + MinWidth + "; Max=" + MaxWidth);
-            sw.WriteLine("Actual number of widths\t" + _usedWidthIndices.Count.ToString());
+            using StreamWriter sw = new($"{folder}\\Widths.dat");
+            sw.WriteLine($"Nominal number of widths\t{Settings.NWidthLevels}");
+            sw.WriteLine($"Widths\tMin={MinWidth}; Max={MaxWidth}");
+            sw.WriteLine($"Actual number of widths\t{_usedWidthIndices.Count}");
 
             List<string> wList = [.. _actualWidths.Select((item, ix) =>
                 ix.ToString() + " " + item.ToString()).Where((item, ix) =>
                        _usedWidthIndices.Contains(ix))];
 
-            sw.WriteLine("Actual widths\t" + string.Join(Environment.NewLine + "\t", wList));
+            sw.WriteLine($"Actual widths\t{string.Join(Environment.NewLine + "\t", wList)}");
         }
 
         public void WriteSettings(string folder)
@@ -678,15 +693,16 @@ namespace DCTRClasses
             {
                 int nGroups = 16;
 
-                Parallel.For(0, nGroups, i =>
+                //Parallel.For(0, nGroups, i =>
+                for (int i = 0; i < nGroups; i++)
                 {
                     for (int j = i; j < keyList.Count; j += nGroups)
                     {
-                        DopplerEngine dEngine = new();
+                        //DopplerEngine dEngine = new();
 
                         // The full range of Doppler half-widths over the inhomogeneous path is
                         // discretized into 100,000 bins (see DCTR paper)
-                        dEngine.Initialize(Parent.StartWaveNumber, Parent.EndWaveNumber, 100000);
+                        _dopplerEngine.Initialize(Parent.StartWaveNumber, Parent.EndWaveNumber, 100000);
 
                         int lIx = keyList[j], ixIndex, isotopeID;
 
@@ -696,20 +712,20 @@ namespace DCTRClasses
 
                             isotopeID = lEnsemble.IndexArray[ixIndex + 2];
 
-                            Update(lEnsemble, line, state, species, dEngine);
+                            Update(lEnsemble, line, state, species);
                         }
                     }
-                });
+                }//);
             }
             else
             {
                 for (int i = 0; i < keyList.Count; i++)
                 {
-                    DopplerEngine dEngine = new();
+                    //DopplerEngine dEngine = new();
 
                     // The full range of Doppler half-widths over the inhomogeneous path is
                     // discretized into 100,000 bins (see DCTR paper)
-                    dEngine.Initialize(Parent.StartWaveNumber, Parent.EndWaveNumber, 100000);
+                    _dopplerEngine.Initialize(Parent.StartWaveNumber, Parent.EndWaveNumber, 100000);
 
                     int lIx = keyList[i], ixIndex, isotopeID;
 
@@ -719,7 +735,7 @@ namespace DCTRClasses
 
                         isotopeID = lEnsemble.IndexArray[ixIndex + 2];
 
-                        Update(lEnsemble, line, state, species, dEngine);
+                        Update(lEnsemble, line, state, species);
                     }
                 }
             }
@@ -819,12 +835,14 @@ namespace DCTRClasses
                 wNumIndex = lEnsemble.IndexArray[i * LineEnsemble.NIndexColumns];
                 widthIndex = lEnsemble.IndexArray[i * LineEnsemble.NIndexColumns + 1];
 
-                if (!lineDict.ContainsKey(widthIndex))
+                if (!lineDict.TryGetValue(widthIndex, out List<int>? value))
                 {
-                    lineDict.Add(widthIndex, []);
+                    value = [];
+
+                    lineDict[widthIndex] = value;
                 }
 
-                lineDict[widthIndex].Add(i);
+                value.Add(i);
 
                 if (wNumIndex > 0 &&
                     wNumIndex < _NArray)
@@ -851,6 +869,8 @@ namespace DCTRClasses
 
         // Container class for the Fast (I)DCT algorithm
         FastDCT? dCont = null;
+
+        readonly DopplerEngine _dopplerEngine = new();
 
         double[]? _intensitySumList = null;
         double[]? _intensityWidthSumList = null;

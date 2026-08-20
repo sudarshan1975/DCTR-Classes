@@ -14,7 +14,7 @@ namespace DCTRClasses
     {
         RunEngine? Parent { get; set; }
 
-        void Initialize();
+        void Initialize(string baseFolder);
 
         void SetWaveNumberRange();
 

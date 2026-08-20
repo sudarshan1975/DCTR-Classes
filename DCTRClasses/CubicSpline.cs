@@ -1,4 +1,5 @@
 ﻿using MathNet.Numerics.LinearAlgebra;
+using Serilog;
 using MNum = MathNet.Numerics;
 
 namespace DCTRClasses
@@ -34,14 +35,16 @@ namespace DCTRClasses
 
         public void SetData(List<double> xList, List<double> yList, double startSlope = double.NaN, double endSlope = double.NaN)
         {
-            set(xList, yList);
+            Set(xList, yList);
 
             updateCoefficients(startSlope, endSlope);
         }
 
         public void WriteToBinaryStream(BinaryWriter bw)
-        {
+        {            
             bw.Write(Count);
+
+            if (!IsValid) return;
 
             for (int i = 0; i < Count; i++)
             {
@@ -67,7 +70,19 @@ namespace DCTRClasses
 
         void updateCoefficients(double startSlope = double.NaN, double endSlope = double.NaN)
         {
-            if (Count < 2) return;
+            if (!IsValid)
+            {
+                Log.Warning($"Invalid spline: couldn't update coefficients");
+
+                return;
+            }
+
+            if (Count < 2)
+            {
+                Log.Warning($"Invalid spline - count is too small: couldn't update coefficients");
+
+                return;
+            }
 
             int NCoeffs = 4 * (Count - 1);
 
