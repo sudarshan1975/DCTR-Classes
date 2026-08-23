@@ -1,4 +1,5 @@
 ﻿using Serilog;
+using System.Diagnostics.CodeAnalysis;
 
 namespace DCTRClasses
 {
@@ -30,12 +31,21 @@ namespace DCTRClasses
         /// <param name="endWNum"></param>
         public void GetNextIndexList(int[] indexList, double startWNum, double endWNum)
         {
+            _isUpdated = false;
+
             if (LineEnsemble == null || indexList[1] >= LineEnsemble.LineCount - 1)
             {
                 UpdateData();
             }
             else
             {
+                if (LineEnsemble.DataArray is null)
+                {
+                    Log.Warning($"Unexpected error: data buffer line ensemble data array is null");
+
+                    return;
+                }
+
                 if (LineEnsemble.DataArray[(indexList[1] + 1) * LineEnsemble.NDataColumns] >= endWNum)
                 {
                     indexList[0] = -1;
@@ -59,86 +69,86 @@ namespace DCTRClasses
         }
 
         // Convenience method, currently deprecated
-        public static Tuple<double[,], double[,], double[,], double[,]> GetWidthTables(string species)
-        {
-            List<double> TempList = [];
-            for (double T = 300; T <= 6000; T += 300)
-            {
-                TempList.Add(T);
-            }
+        //public static Tuple<double[,], double[,], double[,], double[,]> GetWidthTables(string species)
+        //{
+        //    List<double> TempList = [];
+        //    for (double T = 300; T <= 6000; T += 300)
+        //    {
+        //        TempList.Add(T);
+        //    }
 
-            TempList.Insert(0, 100);
-            TempList.Insert(1, 200);
+        //    TempList.Insert(0, 100);
+        //    TempList.Insert(1, 200);
 
-            List<double> wNumList = [];
-            for (double wNum = 0; wNum < 30001; wNum += 100)
-            {
-                wNumList.Add(wNum);
-            }
+        //    List<double> wNumList = [];
+        //    for (double wNum = 0; wNum < 30001; wNum += 100)
+        //    {
+        //        wNumList.Add(wNum);
+        //    }
 
-            double[,] minSelfWidthArray = new double[TempList.Count, wNumList.Count - 1];
-            double[,] maxSelfWidthArray = new double[TempList.Count, wNumList.Count - 1];
-            double[,] minAirWidthArray = new double[TempList.Count, wNumList.Count - 1];
-            double[,] maxAirWidthArray = new double[TempList.Count, wNumList.Count - 1];
+        //    double[,] minSelfWidthArray = new double[TempList.Count, wNumList.Count - 1];
+        //    double[,] maxSelfWidthArray = new double[TempList.Count, wNumList.Count - 1];
+        //    double[,] minAirWidthArray = new double[TempList.Count, wNumList.Count - 1];
+        //    double[,] maxAirWidthArray = new double[TempList.Count, wNumList.Count - 1];
 
-            for (int i = 0; i < TempList.Count; i++)
-            {
-                for (int j = 0; j < wNumList.Count - 1; j++)
-                {
-                    minSelfWidthArray[i, j] = double.PositiveInfinity;
+        //    for (int i = 0; i < TempList.Count; i++)
+        //    {
+        //        for (int j = 0; j < wNumList.Count - 1; j++)
+        //        {
+        //            minSelfWidthArray[i, j] = double.PositiveInfinity;
 
-                    maxSelfWidthArray[i, j] = double.NegativeInfinity;
+        //            maxSelfWidthArray[i, j] = double.NegativeInfinity;
 
-                    minAirWidthArray[i, j] = double.PositiveInfinity;
+        //            minAirWidthArray[i, j] = double.PositiveInfinity;
 
-                    maxAirWidthArray[i, j] = double.NegativeInfinity;
-                }
-            }
+        //            maxAirWidthArray[i, j] = double.NegativeInfinity;
+        //        }
+        //    }
 
-            DataBuffer dBuffer = new();
+        //    DataBuffer dBuffer = new();
 
-            RunEngine.InitializeDataBuffer(dBuffer, species, 0, 30000);
+        //    RunEngine.InitializeDataBuffer(dBuffer, species, 0, 30000);
 
-            dBuffer.UpdateData();
+        //    dBuffer.UpdateData();
 
-            int wNumIx = 0;
+        //    int wNumIx = 0;
 
-            while (dBuffer.LineEnsemble != null)
-            {
-                for (int i = 0; i < dBuffer.LineEnsemble.LineCount; i++)
-                {
-                    int lineCenterIx = i * LineEnsemble.NDataColumns;
+        //    while (dBuffer.LineEnsemble != null)
+        //    {
+        //        for (int i = 0; i < dBuffer.LineEnsemble.LineCount; i++)
+        //        {
+        //            int lineCenterIx = i * LineEnsemble.NDataColumns;
 
-                    int TIx = 0;
-                    foreach (double T in TempList)
-                    {
-                        double lineCenter = dBuffer.LineEnsemble.DataArray[lineCenterIx];
+        //            int TIx = 0;
+        //            foreach (double T in TempList)
+        //            {
+        //                double lineCenter = dBuffer.LineEnsemble.DataArray[lineCenterIx];
 
-                        while (lineCenter > wNumList[wNumIx + 1])
-                        {
-                            wNumIx++;
-                        }
+        //                while (lineCenter > wNumList[wNumIx + 1])
+        //                {
+        //                    wNumIx++;
+        //                }
 
-                        double w = dBuffer.LineEnsemble.GetHalfWidth(i, 0, T);
+        //                double w = dBuffer.LineEnsemble.GetHalfWidth(i, 0, T);
 
-                        if (minAirWidthArray[TIx, wNumIx] > w) minAirWidthArray[TIx, wNumIx] = w;
-                        if (maxAirWidthArray[TIx, wNumIx] < w) maxAirWidthArray[TIx, wNumIx] = w;
+        //                if (minAirWidthArray[TIx, wNumIx] > w) minAirWidthArray[TIx, wNumIx] = w;
+        //                if (maxAirWidthArray[TIx, wNumIx] < w) maxAirWidthArray[TIx, wNumIx] = w;
 
-                        w = dBuffer.LineEnsemble.GetHalfWidth(i, 1, T);
+        //                w = dBuffer.LineEnsemble.GetHalfWidth(i, 1, T);
 
-                        if (minSelfWidthArray[TIx, wNumIx] > w) minSelfWidthArray[TIx, wNumIx] = w;
-                        if (maxSelfWidthArray[TIx, wNumIx] < w) maxSelfWidthArray[TIx, wNumIx] = w;
+        //                if (minSelfWidthArray[TIx, wNumIx] > w) minSelfWidthArray[TIx, wNumIx] = w;
+        //                if (maxSelfWidthArray[TIx, wNumIx] < w) maxSelfWidthArray[TIx, wNumIx] = w;
 
-                        TIx++;
-                    }
-                }
+        //                TIx++;
+        //            }
+        //        }
 
-                dBuffer.UpdateData();
-            }
+        //        dBuffer.UpdateData();
+        //    }
 
-            return new Tuple<double[,], double[,], double[,], double[,]>(minSelfWidthArray, maxSelfWidthArray,
-                minAirWidthArray, maxAirWidthArray);
-        }
+        //    return new Tuple<double[,], double[,], double[,], double[,]>(minSelfWidthArray, maxSelfWidthArray,
+        //        minAirWidthArray, maxAirWidthArray);
+        //}
 
         public void Initialize(string folder, string pattern, double startWNum, double endWNum)
         {
@@ -158,6 +168,13 @@ namespace DCTRClasses
             }
 
             _fileList = [];
+
+            if (FolderName is null)
+            {
+                Log.Error($"Could not initialize data buffer: null folder name");
+
+                return;
+            }
 
             // Get list of files which match the specified pattern, from the specified folder
             string[] fileList = Directory.GetFiles(FolderName, FilePattern);
@@ -259,6 +276,17 @@ namespace DCTRClasses
             set { _folderName = value; }
         }
 
+        [MemberNotNullWhen(true, [nameof(_lineEnsemble), nameof(LineEnsemble)])]
+        public bool IsValid
+        {
+            get
+            {
+                update();
+
+                return _isValid;
+            }
+        }
+
         // Holds line data in memory as flattened arrays
         public LineEnsemble? LineEnsemble
         {
@@ -337,6 +365,15 @@ namespace DCTRClasses
             }
         }
 
+        void update()
+        {
+            if (_isUpdated) return;
+
+            _isUpdated = true;
+
+            _isValid = _lineEnsemble is not null;
+        }
+
         #endregion Private Methods
 
         #region Private Properties
@@ -359,6 +396,10 @@ namespace DCTRClasses
 
         // Base folder containing line data binary files
         string? _folderName = null;
+
+        bool _isUpdated = false;
+
+        bool _isValid = false;
 
         // Holds line data in memory as flattened arrays
         LineEnsemble? _lineEnsemble = null;

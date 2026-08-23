@@ -1,4 +1,6 @@
 ﻿using Serilog;
+using FunctionLibrary;
+using System.Diagnostics.CodeAnalysis;
 
 namespace DCTRClasses
 {
@@ -30,21 +32,30 @@ namespace DCTRClasses
 
         public void Echo()
         {
+            update();
+
+            if (!IsValid)
+            {
+                Log.Warning($"Invalid run engine: Echo");
+
+                return;
+            }
+
             Log.Information($"WNumStart={StartWaveNumber} cm-1");
             Log.Information($"WNumEnd={EndWaveNumber} cm-1");
             Log.Information($"WNum resolution={WaveNumberResolution} cm-1");
             Log.Information($"WNum spread={WaveNumberSpread} cm-1");
             Log.Information($"Profile={Profile}");
             Log.Information($"Intensity cutoff={IntensityCutoff} cm-1");
-            Log.Information($"Species count={SpeciesDefinitions.Count}");
+            Log.Information($"Species count={_speciesDefinitions.Count}");
             Log.Information($"Species={string.Join(",",
-                SpeciesDefinitions.Select(x => $"{x.Value} {x.Key}"))}");
+                _speciesDefinitions.Select(x => $"{x.Value} {x.Key}"))}");
 
             Solver.Echo();
 
             Log.Information($"Path specification:");
 
-            StateMachine.Echo();
+            _stateMachine.Echo();
         }
 
         Dictionary<string, string> generateReportDictionary()
@@ -66,6 +77,13 @@ namespace DCTRClasses
             //_dopplerEngine.SetMolecularWeights(BaseFolder);
 
             ReadFromFile(BaseFolder + @"\DCTRInput.dat");
+
+            if (StateMachine is null)
+            {
+                Log.Warning($"Could not initialize run engine: null state machine");
+
+                return;
+            }
 
             Solver.Parent = this;
 
@@ -90,7 +108,7 @@ namespace DCTRClasses
         {
             SpeciesDefinitions = [];
 
-            StateMachine = new StateMachine();
+            StateMachine = new();
             List<string> stateLines = [];
 
             List<string> leftoverLines = [];
@@ -325,14 +343,28 @@ namespace DCTRClasses
 
         public void Run()
         {
+            if (!IsValid)
+            {
+                Log.Warning($"Invalid run engine: could not run");
+
+                return;
+            }
+
             if (!Directory.Exists(OutputFolder)) Directory.CreateDirectory(OutputFolder);
 
             // Gets the minimum possible and maximum possible Lorentz half-width that
             // would be encountered in the full inhomogeneous gas path
             // This is determined based on pre-tabulated values, which are tabulated
             // based on temperature and species mole fraction
-            double[] minMaxWidths = StateMachine.GetMinMaxWidths(
+            Result<double[]?> minMaxWidthsRes = StateMachine.GetMinMaxWidths(
                 SpeciesDefinitions, StartWaveNumber, EndWaveNumber);
+
+            if (!minMaxWidthsRes.TryGetValue(out double[]? minMaxWidths))
+            {
+                Log.Warning($"RunEngine: Could not run: null min/max width output");
+
+                return;
+            }
 
             Solver.MinWidth = minMaxWidths[0];
             Solver.MaxWidth = minMaxWidths[1];
@@ -344,6 +376,13 @@ namespace DCTRClasses
             TimingFunctions.Clear();
 
             Dictionary<string, DataBuffer> bufferDict = [];
+
+            if (StateMachine.StateDefinitions is null)
+            {
+                Log.Warning($"Run engine: state definitions is null: could not run");
+
+                return;
+            }
 
             foreach (string speciesKey in SpeciesDefinitions.Keys)
             {
@@ -370,6 +409,13 @@ namespace DCTRClasses
             }
 
             Solver.SetWaveNumberRange();
+
+            if (WaveNumberRange is null)
+            {
+                Log.Warning($"Run engine: wavenumber range is null: could not run");
+
+                return;
+            }
 
             // Large spectral intervals are split into sub-intervals
             // (depending on the desired resolution) to facilitate
@@ -417,6 +463,14 @@ namespace DCTRClasses
 
             WriteToFile(OutputFolder + "\\RunDefinition.dat");
 
+            if (StateMachine.FileName is null)
+            {
+                Log.Warning($"Run engine: state machine has no file name" +
+                    $" specification: could not complete run");
+
+                return;
+            }
+
             File.Copy(StateMachine.FileName, OutputFolder + "\\PathFile.dat");
 
             StateMachine.WriteStateArray(OutputFolder + "\\PathArray.dat");
@@ -435,13 +489,22 @@ namespace DCTRClasses
 
         public void WriteToFile(string fName)
         {
+            update();
+
+            if (!IsValid)
+            {
+                Log.Warning($"Invalid run engine: could not write to file");
+
+                return;
+            }
+
             using StreamWriter sw = new(fName);
             sw.WriteLine($"Run type:\t{RunType}");
             sw.WriteLine($"Profile:\t{Profile}");
-            foreach (string key in SpeciesDefinitions.Keys)
-                sw.WriteLine($"{SpeciesDefinitions[key]} {key}");
+            foreach (string key in _speciesDefinitions.Keys)
+                sw.WriteLine($"{_speciesDefinitions[key]} {key}");
             sw.Write("Path definition:\t");
-            StateMachine.WriteToStream(sw);
+            _stateMachine.WriteToStream(sw);
             sw.WriteLine($"StartWNum (cm-1):\t{StartWaveNumber}");
             sw.WriteLine($"EndWNum (cm-1):\t{EndWaveNumber}");
             sw.WriteLine($"WNum Resolution (cm-1):\t{WaveNumberResolution}");
@@ -485,7 +548,20 @@ namespace DCTRClasses
             set { _intensityCutoff = value; }
         }
 
-        public string OutputFolder
+        [MemberNotNullWhen(true, [nameof(_speciesDefinitions),
+            nameof(_stateMachine), nameof(_outputFolder),
+            nameof(SpeciesDefinitions), nameof(StateMachine), nameof(OutputFolder)])]
+        public bool IsValid
+        {
+            get
+            {
+                update();
+
+                return _isValid;
+            }
+        }
+
+        public string? OutputFolder
         {
             get { return _outputFolder; }
             set { _outputFolder = value; }
@@ -511,7 +587,7 @@ namespace DCTRClasses
 
         // Key - species (CO2, H2O, etc.)
         // Value - source (HITEMP, HITRAN, CDSD)
-        public Dictionary<string, string> SpeciesDefinitions
+        public Dictionary<string, string>? SpeciesDefinitions
         {
             get { return _speciesDefinitions; }
             set { _speciesDefinitions = value; }
@@ -530,13 +606,13 @@ namespace DCTRClasses
             set { _startWNumOffset = value; }
         }
 
-        public StateMachine StateMachine
+        public StateMachine? StateMachine
         {
             get { return _stateMachine; }
             set { _stateMachine = value; }
         }
 
-        public double[] WaveNumberRange
+        public double[]? WaveNumberRange
         {
             get { return _waveNumberRange; }
             set { _waveNumberRange = value; }
@@ -557,6 +633,17 @@ namespace DCTRClasses
         }
 
         #endregion Public Properties
+
+        void update()
+        {
+            if (_isUpdated) return;
+
+            _isUpdated = true;
+
+            _isValid = _outputFolder is not null;
+            _isValid = _isValid && _stateMachine is not null;
+            _isValid = _isValid && _speciesDefinitions is not null;
+        }
 
         #region Private Methods
 
@@ -598,7 +685,11 @@ namespace DCTRClasses
 
         double _intensityCutoff = 0;
 
-        string _outputFolder = null;
+        bool _isUpdated = false;
+
+        bool _isValid = false;
+
+        string? _outputFolder = null;
 
         Profile _profile = Profile.Lorentz;
 
@@ -608,16 +699,16 @@ namespace DCTRClasses
 
         // Key - species (CO2, H2O, etc.)
         // Value - source (HITEMP, HITRAN, CDSD)
-        Dictionary<string, string> _speciesDefinitions = null;
+        Dictionary<string, string>? _speciesDefinitions = null;
 
         double _startWNumOffset = 0;
 
         // Cm-1
         double _startWaveNumber = 0;
 
-        StateMachine _stateMachine = null;
+        StateMachine? _stateMachine = null;
 
-        double[] _waveNumberRange = null;
+        double[]? _waveNumberRange = null;
 
         // Cm-1
         double _waveNumberResolution = 0.01;

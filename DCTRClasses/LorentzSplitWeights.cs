@@ -1,4 +1,5 @@
-﻿using MNUM = MathNet.Numerics;
+﻿using Serilog;
+using MNUM = MathNet.Numerics;
 
 namespace DCTRClasses
 {
@@ -83,6 +84,13 @@ namespace DCTRClasses
 
         public double[] GetWeights(double k)
         {
+            if (_flattenedInverseMatrix is null)
+            {
+                Log.Error($"Lorentz weights: could not get weights (null matrix)");
+
+                return [];
+            }
+
             int NShifts = ShiftList.Count;
             int N = NShifts - 1;
 

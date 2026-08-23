@@ -254,7 +254,12 @@ namespace DCTRClasses
         [MemberNotNullWhen(true, nameof(_molWtDict))]
         public bool IsValid
         {
-            get { return _isValid; }
+            get
+            {
+                update();
+
+                return _isValid;
+            }
         }
 
         #endregion Public Properties

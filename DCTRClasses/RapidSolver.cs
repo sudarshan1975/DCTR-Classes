@@ -2,6 +2,7 @@
 using Serilog;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -23,6 +24,15 @@ namespace DCTRClasses
 
         public void FinalizeCalcs(bool requiresOverlap)
         {
+            update();
+
+            if (!IsValid || Parent.OutputFolder is null)
+            {
+                Log.Warning($"Could not finalize rapid solver calcs");
+
+                return;
+            }
+
             // requiresOverlap is true when the full spectral interval is too large to handle in one piece
             // In this case, the code will split the full interval into overlapping sub-intervals
             // Finally, these overlapping sub-intervals are combined into one output array
@@ -36,6 +46,13 @@ namespace DCTRClasses
 
         public void Initialize(string baseFolder)
         {
+            if (Parent is null)
+            {
+                Log.Warning($"Invalid rapid solver - null parent: could not initialize");
+
+                return;
+            }
+
             _currentRunID = Guid.NewGuid();
 
             _outArray = null;
@@ -108,6 +125,13 @@ namespace DCTRClasses
         public void Run(double startWNum, double endWNum, bool requiresOverlap, StateMachine stateMachine,
             Dictionary<string, DataBuffer> bufferDict)
         {
+            if (Parent is null || stateMachine.StateDefinitions is null || Parent.WaveNumberRange is null)
+            {
+                Log.Warning($"Invalid rapid solver: cannot run");
+
+                return;
+            }
+
             TimingFunctions.InitializeTime("RHTC: Rapid calcs");
 
             startWNum += Parent.StartWNumOffset;
@@ -134,6 +158,14 @@ namespace DCTRClasses
                 indexList[1] = -1;
 
                 dBuffer.GetNextIndexList(indexList, startWNum, endWNum);
+
+                if (!dBuffer.IsValid)
+                {
+                    Log.Warning($"Invalid data buffer for species {species}");
+
+                    continue;
+                }
+
                 while (indexList[1] != -1)
                 {
                     foreach (RunEngineState state in stateList)
@@ -146,14 +178,21 @@ namespace DCTRClasses
                         setLineCurrentStates(dBuffer.LineEnsemble, indexList[0] + 1, indexList[1] + 1, state, species);
 
                         // For debugging only
-                        if (dBuffer.DebugMode)
-                            dBuffer.LineEnsemble.AppendToFile(dBuffer.DebugFileName, indexList[0], indexList[1],
-                            Parent.IntensityCutoff);
+                        if (dBuffer.DebugMode && dBuffer.DebugFileName is not null)
+                            dBuffer.LineEnsemble.AppendToFile(dBuffer.DebugFileName,
+                                indexList[0], indexList[1], Parent.IntensityCutoff);
 
                         // Gets list of indices of lines which fall within each discretized Lorentz half-width bin
-                        Dictionary<int, List<int>> lineDict = updateLineDictionary(
+                        Result<Dictionary<int, List<int>>?> lineDictRes = updateLineDictionary(
                             dBuffer.LineEnsemble, indexList[0] + 1,
                             indexList[1] + 1, out long lCount);
+
+                        Logging.LogResult(lineDictRes);
+
+                        if (!lineDictRes.TryGetValue(out Dictionary<int, List<int>>? lineDict))
+                        {
+                            return;
+                        }
 
                         performUpdate(dBuffer.LineEnsemble, lineDict, state, species);
 
@@ -176,6 +215,13 @@ namespace DCTRClasses
         // broken down into sub-intervals)
         public void SaveCurrentArray(bool requiresOverlap)
         {
+            if (!IsValid || _outArray is null)
+            {
+                Log.Warning($"Invalid rapid solver: cannot save current array");
+
+                return;
+            }
+
             performFreqDomainConvolution();
 
             if (!requiresOverlap || _usedWidthIndices.Count == 0 || _outArray[0] == null)
@@ -200,6 +246,13 @@ namespace DCTRClasses
 
         public void SetWaveNumberRange()
         {
+            if (Parent is null)
+            {
+                Log.Warning($"Invalid rapid solver (null parent): cannot set wavenumber range");
+
+                return;
+            }
+
             double NN = (Parent.EndWaveNumber - Parent.StartWaveNumber) / Parent.WaveNumberResolution;
 
             int NMax = 1 << 20;
@@ -224,6 +277,20 @@ namespace DCTRClasses
         // or the Doppler profile scaled by the line intensity value (for Voigt profile runs)
         public void Update(LineEnsemble lEnsemble, int ix, RunEngineState state, string species)
         {
+            if (!IsValid || _outArray is null)
+            {
+                Log.Warning($"Invalid rapid solver: cannot update");
+
+                return;
+            }
+
+            if (!lEnsemble.IsValid)
+            {
+                Log.Warning("Cannot update rapid solver: invalid line ensemble input");
+
+                return;
+            }
+
             int ixSingle = ix * LineEnsemble.NDataColumns;
             int ixIndex = ix * LineEnsemble.NIndexColumns;
 
@@ -343,6 +410,28 @@ namespace DCTRClasses
         /// <param name="reportDict"></param>
         public void UpdateReportDictionary(Dictionary<string, string> reportDict)
         {
+            if (!IsValid)
+            {
+                Log.Warning($"Invalid rapid solver: could not update report dictionary");
+
+                return;
+            }
+
+            if (!Parent.IsValid)
+            {
+                Log.Warning($"Invalid rapid solver (invalid parent): could not update report dictionary");
+
+                return;
+            }
+
+            if (Parent.StateMachine.StateDefinitions is null)
+            {
+                Log.Warning($"Invalid rapid solver (invalid parent state definitions):" +
+                    $" could not update report dictionary");
+
+                return;
+            }
+
             Dictionary<string, double> cpuTimes = TimingFunctions.GetCPUTimes();
 
             Log.Information(string.Join(Environment.NewLine, cpuTimes.Keys));
@@ -383,6 +472,15 @@ namespace DCTRClasses
 
         public void Write(string folderName)
         {
+            update();
+
+            if (!IsValid || _outArray is null)
+            {
+                Log.Warning($"Invalid rapid solver: cannot write");
+
+                return;
+            }
+
             string fName = folderName + "\\absorptances.dat";
 
             using StreamWriter sw = new(fName);
@@ -407,6 +505,15 @@ namespace DCTRClasses
 
         public void WriteDetails(string folder)
         {
+            update();
+
+            if (!IsValid || _actualWidths is null)
+            {
+                Log.Warning($"Invalid rapid solver: cannot write details");
+
+                return;
+            }
+
             using StreamWriter sw = new($"{folder}\\Widths.dat");
             sw.WriteLine($"Nominal number of widths\t{Settings.NWidthLevels}");
             sw.WriteLine($"Widths\tMin={MinWidth}; Max={MaxWidth}");
@@ -427,6 +534,18 @@ namespace DCTRClasses
         #endregion Public Methods
 
         #region Public Properties
+
+        [MemberNotNullWhen(true, [nameof(_dCont), nameof(Parent),
+            nameof(_intensitySumList), nameof(_intensityWidthSumList), nameof(_widthRanges)])]
+        public bool IsValid
+        {
+            get
+            {
+                update();
+
+                return _isValid;
+            }
+        }
 
         // Maximum value of Lorentz half-width of all lines within the inhomogeneous gas path
         // This can be pre-determined and tabulated (see DCTR paper)
@@ -492,6 +611,15 @@ namespace DCTRClasses
         /// </summary>
         void generateFinalOutputArray()
         {
+            update();
+
+            if (!IsValid)
+            {
+                Log.Warning($"Invalid rapid solver: could not generate final output array");
+
+                return;
+            }
+
             _NBaseArray = RHTFunctions.GetArrayLength(Parent.StartWaveNumber,
                 Parent.EndWaveNumber, Parent.WaveNumberResolution);
 
@@ -551,6 +679,15 @@ namespace DCTRClasses
 
             // Contains the actual binned Lorentz half-widths used in the computation
             _actualWidths = new double[Settings.NWidthLevels];
+
+            update();
+
+            if (!IsValid || _outArray is null)
+            {
+                Log.Warning($"Invalid rapid solver: could not perform frequency domain convolution");
+
+                return;
+            }
 
             // _usedWidthIndices is a hash set of all the Lorentz half-width indices which
             // were actually encountered during the computation of the inhomogeneous gas path
@@ -639,9 +776,9 @@ namespace DCTRClasses
                             newArray[i] = _outArray[ix][i - NArray_2];
                         }
 
-                        _outArray[ix] = dCont.IDCT(newArray);
+                        _outArray[ix] = _dCont.IDCT(newArray);
 
-                        lProf = dCont.IDCT(lProf);
+                        lProf = _dCont.IDCT(lProf);
 
                         for (int i = 0; i < NArray2; i++) _outArray[ix][i] *= lProf[i] * NArray2;
                     }
@@ -665,7 +802,7 @@ namespace DCTRClasses
                 {
                     // Deconvolution consists of taking the DCT of the row sum of the
                     // output array
-                    double[] newArray = dCont.DCT(_outArray[usedWidthIndices[0]]);
+                    double[] newArray = _dCont.DCT(_outArray[usedWidthIndices[0]]);
 
                     // Take the mid-part of the deconvolved array (ignore the first 1/4th and last 1/4th,
                     // take only the middle 1/2 of the array)
@@ -683,6 +820,20 @@ namespace DCTRClasses
         void performUpdate(LineEnsemble lEnsemble, Dictionary<int, List<int>> lineDict,
             RunEngineState state, string species)
         {
+            if (!IsValid)
+            {
+                Log.Warning($"Invalid rapid solver: could not perform update");
+
+                return;
+            }
+
+            if (!lEnsemble.IsValid)
+            {
+                Log.Warning($"Could not perform rapid solver update: invalid line ensemble input");
+
+                return;
+            }
+
             List<int> keyList = [.. lineDict.Keys];
 
             TimingFunctions.InitializeTime("RHTC: Update lines");
@@ -745,6 +896,13 @@ namespace DCTRClasses
 
         void setInitialParameters(double startWNum, double endWNum, bool requiresOverlap)
         {
+            if (Parent is null)
+            {
+                Log.Warning($"Invalid rapid solver: could not set initial parameters");
+
+                return;
+            }
+
             // Nearest higher power of 2 to the actual number of wavenumber bins
             _NArray = RHTFunctions.Get2PowerLength(startWNum,
                 endWNum, Parent.WaveNumberResolution);
@@ -756,7 +914,7 @@ namespace DCTRClasses
             if (requiresOverlap) _NArray <<= 1;
 
             // Allocating for twice the actual size, to allow for zero-padding
-            dCont = new FastDCT(_NArray << 1);
+            _dCont = new FastDCT(_NArray << 1);
 
             int nOffset = (_NArray - _NBaseArray) / 2;
 
@@ -772,6 +930,13 @@ namespace DCTRClasses
         void setLineCurrentStates(LineEnsemble lEnsemble, int startIndex,
             int endIndex, RunEngineState state, string species)
         {
+            if (!IsValid)
+            {
+                Log.Warning($"Invalid rapid solver: could not set line current states");
+
+                return;
+            }
+
             TimingFunctions.InitializeTime("RHTC: Set Current State");
 
             bool parallelize = true;
@@ -807,13 +972,35 @@ namespace DCTRClasses
             TimingFunctions.AddTime("RHTC: Set Current State");
         }
 
-        Dictionary<int, List<int>> updateLineDictionary(
+        void update()
+        {
+            if (_isUpdated) return;
+
+            _isUpdated = true;
+
+            _isValid = _dCont is not null && _parent is not null;
+
+            _isValid = _isValid && _intensitySumList is not null &&
+             _intensityWidthSumList is not null;
+
+            _isValid = _isValid && _widthRanges is not null;
+        }
+
+        Result<Dictionary<int, List<int>>?> updateLineDictionary(
     LineEnsemble lEnsemble, int startIndex,
     int endIndex, out long lCount)
         {
-            TimingFunctions.InitializeTime("RHTC: Update dictionary");
+            update();
 
             lCount = 0;
+
+            if (!IsValid || lEnsemble.DataArray is null || lEnsemble.IndexArray is null)
+            {
+                return new(null, false, $"Invalid rapid solver: could not update line dictionary",
+                    Severity.WARNING);
+            }
+
+            TimingFunctions.InitializeTime("RHTC: Update dictionary");
 
             // Key: index of discretized Lorentz half-width bin
             // Value: list of line indices whose half-widths fall within
@@ -853,7 +1040,7 @@ namespace DCTRClasses
 
             TimingFunctions.AddTime("RHTC: Update dictionary");
 
-            return lineDict;
+            return new(lineDict);
         }
 
         #endregion Private Methods
@@ -861,37 +1048,23 @@ namespace DCTRClasses
         #region Private Properties
 
         // Actual line widths encountered during the run
-        double[] _actualWidths = null;
+        double[]? _actualWidths = null;
 
         double _arrayStartWNum = 0;
 
         Guid _currentRunID = Guid.Empty;
 
         // Container class for the Fast (I)DCT algorithm
-        FastDCT? dCont = null;
+        FastDCT? _dCont = null;
 
         readonly DopplerEngine _dopplerEngine = new();
 
         double[]? _intensitySumList = null;
         double[]? _intensityWidthSumList = null;
 
-        // _NBaseArray is the actual array length which goes from the start wavenumber to
-        // the end wavenumber with the desired resolution
-        // _NArray is the nearest higher power of 2 to _NBaseArray
-        int _NArray = 0, _NBaseArray = 0;
+        bool _isUpdated = false;
 
-        double[][]? _outArray = null;
-
-        readonly Dictionary<int, LorentzSplitWeights> _splitWeightsDict = [];
-
-        // Indices of binned Lorentz half-widths which are actually encountered during the run
-        // For example, the run might define 64 width bins geometrically, between 0.01 cm-1 and
-        // 1 cm-1. However, lines might not fall into every one of these 64 width bins, and some
-        // width bins would have no corresponding lines.
-        // The hashset ensures that there are no repeats of width bin indices.
-        HashSet<int> _usedWidthIndices = [];
-
-        double[]? _widthRanges = null;
+        bool _isValid = false;
 
         // Maximum value of Lorentz half-width of all lines within the inhomogeneous gas path
         // This can be pre-determined and tabulated (see DCTR paper)
@@ -901,6 +1074,13 @@ namespace DCTRClasses
         // This can be pre-determined and tabulated (see DCTR paper)
         double _minWidth = 0.005;
 
+        // _NBaseArray is the actual array length which goes from the start wavenumber to
+        // the end wavenumber with the desired resolution
+        // _NArray is the nearest higher power of 2 to _NBaseArray
+        int _NArray = 0, _NBaseArray = 0;
+
+        double[][]? _outArray = null;
+
         // The solver instance resides within a parent RunEngine instance
         // The Parent property below provides a link to the run engine, which
         // contains the solver
@@ -908,12 +1088,23 @@ namespace DCTRClasses
 
         RapidSolverSettings _settings = new();
 
+        readonly Dictionary<int, LorentzSplitWeights> _splitWeightsDict = [];
+
         // Keeps track of total number of line-locations handled during the run
         // (See DCTR paper)
         long _totalLineCalculationCountEstimate = 0;
 
         // Keeps track of total number of lines handled during the run
         long _totalLineCount = 0;
+
+        // Indices of binned Lorentz half-widths which are actually encountered during the run
+        // For example, the run might define 64 width bins geometrically, between 0.01 cm-1 and
+        // 1 cm-1. However, lines might not fall into every one of these 64 width bins, and some
+        // width bins would have no corresponding lines.
+        // The hashset ensures that there are no repeats of width bin indices.
+        HashSet<int> _usedWidthIndices = [];
+
+        double[]? _widthRanges = null;
 
         // Geometric binning width ratio (see DCTR paper)
         double _widthRatio = 1;

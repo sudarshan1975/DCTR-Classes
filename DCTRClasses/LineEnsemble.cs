@@ -1,4 +1,5 @@
 ﻿using Serilog;
+using System.Diagnostics.CodeAnalysis;
 
 namespace DCTRClasses
 {
@@ -8,6 +9,13 @@ namespace DCTRClasses
 
         public void AppendToFile(string fileName, int startIx, int endIx, double intensityCutoff)
         {
+            if (!IsValid)
+            {
+                Log.Warning($"Could not append to file in line ensemble");
+
+                return;
+            }
+
             int curIx = startIx * NDataColumns;
 
             using StreamWriter sw = new(fileName, true);
@@ -37,6 +45,13 @@ namespace DCTRClasses
         /// <returns></returns>
         public double GetHalfWidth(int ix, double moleFraction, double T)
         {
+            if (!IsValid)
+            {
+                Log.Warning($"Invalid line ensemble: could not get half width");
+
+                return double.NaN;
+            }
+
             int ixSingle = ix * NDataColumns;
 
             double value = 0, v, f;
@@ -96,6 +111,13 @@ namespace DCTRClasses
             using BinaryReader br = new(File.Open(fileName, FileMode.Open));
             Initialize(LineCount);
 
+            if (!IsValid)
+            {
+                Log.Warning($"Invalid line ensemble: could not read from binary file");
+
+                return;
+            }
+
             int lCount = LineCount * NDataColumns;
 
             int ix = 0;
@@ -118,6 +140,13 @@ namespace DCTRClasses
 
         public void ReadFromFile(string fileName)
         {
+            if (!IsValid)
+            {
+                Log.Warning($"Invalid line ensemble: could not read from file");
+
+                return;
+            }
+
             // HITEMP
             List<int> countList = [2, 1, 12, 10, 10, 5];
             countList.AddRange([5, 10, 4, 8, 4]);
@@ -201,6 +230,13 @@ namespace DCTRClasses
     , double[] widthRanges, double widthRatio,
     double wNumRes, double intensityCutoff)
         {
+            if (!IsValid)
+            {
+                Log.Warning($"Invalid line ensemble: could not set current state");
+
+                return;
+            }
+
             int ixSingle = ix * NDataColumns, ixIndex = ix * NIndexColumns;
 
             int isotopeID = IndexArray[ixIndex + 2];
@@ -261,6 +297,13 @@ namespace DCTRClasses
 
         public void WriteBinaryFile(string fileName)
         {
+            if (!IsValid)
+            {
+                Log.Warning($"Invalid line ensemble: could not write binary file");
+
+                return;
+            }
+
             using BinaryWriter bw = new(File.Open(fileName, FileMode.Create));
             for (int i = 0; i < LineCount; i++)
             {
@@ -279,6 +322,17 @@ namespace DCTRClasses
         // Key represents the line parameter; value represents the column index
         readonly static Dictionary<string, int> DataColumnDict = [];
 
+        [MemberNotNullWhen(true, [nameof(DataArray), nameof(IndexArray)])]
+        public bool IsValid
+        {
+            get
+            {
+                update();
+
+                return _isValid;
+            }
+        }
+
         public int LineCount = 0;
 
         // Static array which contains line data; rows represent individual lines,
@@ -290,6 +344,12 @@ namespace DCTRClasses
         // Rows represent individual lines, columns represent line indices; the 2-d array is flattened
         // into a 1-d array for fast access
         public int[]? IndexArray = null;
+
+        // NDataColumns is the total number of columns which represents each line
+        // Each column contains one particular line parameter, such as intensity, line center, etc.
+        // NIndexColumns contains useful calculated indices, such as wavenumber location,
+        // or source indices, such as isotope ID
+        public static readonly int NDataColumns = 12, NIndexColumns = 3;
 
         // Reference temperature (K)
         public double TRef = 296;
@@ -314,6 +374,15 @@ namespace DCTRClasses
             DataColumnDict.Add("RawScaledIntensity", 11);
         }
 
+        void update()
+        {
+            if (_isUpdated) return;
+
+            _isUpdated = true;
+
+            _isValid = DataArray is not null && IndexArray is not null;
+        }
+
         #endregion Private Methods
 
         #region Private Properties
@@ -322,16 +391,14 @@ namespace DCTRClasses
         const double c2 = 1.4388028496642257;
 
         // Avogadro number (molecules/mol)
-        const double NA = 6.02214076e23;
-
-        // NDataColumns is the total number of columns which represents each line
-        // Each column contains one particular line parameter, such as intensity, line center, etc.
-        // NIndexColumns contains useful calculated indices, such as wavenumber location,
-        // or source indices, such as isotope ID
-        public static readonly int NDataColumns = 12, NIndexColumns = 3;
+        //const double NA = 6.02214076e23;
 
         // Universal gas constant (J/mol-K)
-        const double R = 8.314;
+        //static readonly double R = 8.314;
+
+        bool _isUpdated = false;
+
+        bool _isValid = false;
 
         #endregion Private Properties
     }

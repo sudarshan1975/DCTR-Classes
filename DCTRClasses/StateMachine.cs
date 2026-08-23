@@ -1,9 +1,5 @@
 ﻿using Serilog;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using FunctionLibrary;
 
 namespace DCTRClasses
 {
@@ -16,15 +12,34 @@ namespace DCTRClasses
 
         public void Echo()
         {
+            if (StateDefinitions is null)
+            {
+                Log.Warning($"Null state definitions in state machine: Echo");
+
+                return;
+            }
+
             List<RunEngineState> stateList = StateDefinitions.FirstOrDefault().Value;
 
             if (stateList.Count == 1) Log.Information("Homogeneous path");
             else Log.Information($"Inhomogeneous path with {stateList.Count} slabs");
         }
 
-        public double[] GetMinMaxWidths(Dictionary<string, string> speciesDefinitions,
+        public Result<double[]?> GetMinMaxWidths(Dictionary<string, string> speciesDefinitions,
             double wNumStart, double wNumEnd)
         {
+            if (StateDefinitions is null)
+            {
+                return new(null, false,
+                    $"Null state definitions in state machine: Min/Max widths", Severity.WARNING);
+            }
+
+            if (Parent is null)
+            {
+                return new(null, false,
+                    $"Null parent in state machine: Min/Max widths", Severity.WARNING);
+            }
+
             double minWidth = double.PositiveInfinity,
                 maxWidth = double.NegativeInfinity;
 
@@ -92,14 +107,19 @@ namespace DCTRClasses
 
             double[] outArray = [minWidth, maxWidth];
 
-            return outArray;
+            return new(outArray);
         }
 
-        public double[,]? GetStateArrays()
+        public Result<double[,]?> GetStateArrays()
         {
             List<string> stateDefList = [];
             List<double[]> outData = [];
             List<string> speciesList = ["CO2", "H2O"];
+
+            if (StateDefinitions is null)
+            {
+                return new(null, false, $"State machine: null state definitions", Severity.WARNING);
+            }
 
             int speciesIx = 0;
             foreach (string species in speciesList)
@@ -129,7 +149,7 @@ namespace DCTRClasses
                 speciesIx++;
             }
 
-            if (outData.Count == 0) return null;
+            if (outData.Count == 0) return new(null, true);
 
             double[,] outArray = new double[outData.Count, 5];
             for (int i = 0; i < outData.Count; i++)
@@ -140,7 +160,7 @@ namespace DCTRClasses
                 }
             }
 
-            return outArray;
+            return new(outArray);
         }
 
         public string GetStateSignature()
@@ -155,6 +175,13 @@ namespace DCTRClasses
 
         public string GetStateSignature(string species)
         {
+            if (StateDefinitions is null)
+            {
+                Log.Warning($"State machine: null state definitions: could not get state signature");
+
+                return "";
+            }
+
             if (!StateDefinitions.TryGetValue(species, out List<RunEngineState>? states)) return "[]";
 
             string outStr = "[";
@@ -316,7 +343,16 @@ namespace DCTRClasses
 
         public void WriteStateArray(string fileName)
         {
-            double[,]? stateArray = GetStateArrays();
+            Result<double[,]?> stateArrayRes = GetStateArrays();
+
+            if (!stateArrayRes.Pass)
+            {
+                Log.Warning($"State machine: could not get state arrays: could not write state arrays");
+
+                return;
+            }
+
+            stateArrayRes.TryGetValue(out double[,]? stateArray);
 
             if (stateArray is null) return;
 

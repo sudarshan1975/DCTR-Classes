@@ -71,10 +71,10 @@
         #region Private Properties
 
         // Universal gas constant (J/mol-K)
-        static double R = 8.314;
+        static readonly double R = 8.314;
 
         // Avogadro number (molecules/mol)
-        static double NA = 6.02214076e23;
+        static readonly double NA = 6.02214076e23;
 
         // Path length: ending location of homogeneous slab within inhomogeneous column (cm)
         double _endLength = 0;
@@ -150,8 +150,8 @@
 
         public string GetFileDescription(double StartWaveNumber, double EndWaveNumber)
         {
-            string outStr = $"{((int)StartWaveNumber).ToString("D5")}_" +
-                     $"{((int)EndWaveNumber).ToString("D5")}_" +
+            string outStr = $"{(int)StartWaveNumber:D5}_" +
+                     $"{(int)EndWaveNumber:D5}_" +
                      $"{_temperature}_{_totalPressure}_{_moleFraction}";
 
             return outStr;

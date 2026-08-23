@@ -181,14 +181,16 @@ namespace DCTRClasses
             set { _count = value; }
         }
 
-        [MemberNotNullWhen(true, nameof(_xList))]
-        [MemberNotNullWhen(true, nameof(_yList))]
-        [MemberNotNullWhen(true, nameof(_coeffList))]
-        [MemberNotNullWhen(true, nameof(XList))]
-        [MemberNotNullWhen(true, nameof(YList))]
+        [MemberNotNullWhen(true, [nameof(_xList),
+            nameof(_yList), nameof(_coeffList), nameof(XList), nameof(YList)])]
         public bool IsValid
         {
-            get { return _isValid; }
+            get
+            {
+                update();
+
+                return _isValid;
+            }
         }
 
         #endregion Public Properties
