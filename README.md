@@ -26,3 +26,15 @@ The advantages of DCTR over RADIS are:
 8. RADIS utilizes a third-party Python library (SYMPY) to estimate line intensity split weights between bins, whereas DCTR calculates these weights analytically, thereby saving significant CPU time
 
 More details may be found in the paper cited above.
+
+**********
+
+Within this repository, the code for converting ASCII line data to binary is in the file Program1.cs.
+
+**********
+
+The executable derived from an earlier (.NET 7) version of this code is at this location:
+
+https://figshare.com/articles/dataset/DCTR_files_/24269011
+
+There is a separate README.docx file in that location, which indicates how to use the (Windows only) executable.
