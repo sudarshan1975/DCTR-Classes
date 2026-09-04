@@ -17,7 +17,7 @@ The advantages of DCTR over RADIS are:
 2. DCTR is 10 to 20 times more accurate than RADIS, as compared to the benchmark HAPI
 3. DCTR consumes the same, or somewhat less memory than RADIS
 4. DCTR can handle ~3X longer spectral ranges per run than RADIS
-5. DCTR is able to perform computations at spectral resolutions of up to 0.0001 cm-1, as compared to 0.001 cm-1 for RADIS, for the same amount of computer RAM (32 GB)
+5. DCTR is able to perform computations at spectral resolutions of up to 0.0001 cm<sup>-1</sup>, as compared to 0.001 cm<sup>-1</sup> for RADIS, for the same amount of computer RAM (32 GB)
 6. DCTR can handle inhomogeneous gas paths, consisting of any number of homogeneous slabs, in a single pass, as compared to RADIS, which needs multiple passes (one pass per slab)
 7. DCTR uses the Discrete Cosine Transform (as compared to RADIS, which uses the Fourier Transform) - as a result:
    1. There is a small additional speed gain for DCTR (on top of speed gains from other aspects of the DCTR algorithm)
