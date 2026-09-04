@@ -2,6 +2,8 @@
 using DCTRClasses;
 using Serilog;
 
+// Use the code in Program1.cs to convert line data from ASCII to binary format
+
 //string folder = Directory.GetCurrentDirectory(); // Uncomment this line to run from the current directory
 string folder = @"D:\RadHeatTransfer\OnlineCode\DCTRPackage"; // Comment this line to run from the current directory
 
@@ -51,7 +53,7 @@ try
 }
 catch (Exception exc)
 {
-    Log.Information($"{exc}{Environment.NewLine}{exc.StackTrace}");
+    Log.Warning($"{exc}{Environment.NewLine}{exc.StackTrace}");
 }
 
 try
